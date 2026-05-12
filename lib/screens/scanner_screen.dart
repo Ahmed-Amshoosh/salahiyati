@@ -19,8 +19,7 @@ class _ScannerScreenState extends State<ScannerScreen>
   late AnimationController _scanAnimationController;
   late Animation<double> _scanAnimation;
 
-  final MobileScannerController _cameraController =
-      MobileScannerController();
+  final MobileScannerController _cameraController = MobileScannerController();
 
   @override
   void initState() {
@@ -32,10 +31,7 @@ class _ScannerScreenState extends State<ScannerScreen>
       duration: const Duration(seconds: 2),
     )..repeat(reverse: false);
 
-    _scanAnimation = Tween<double>(
-      begin: 0,
-      end: 220,
-    ).animate(
+    _scanAnimation = Tween<double>(begin: 0, end: 220).animate(
       CurvedAnimation(
         parent: _scanAnimationController,
         curve: Curves.easeInOut,
@@ -50,6 +46,7 @@ class _ScannerScreenState extends State<ScannerScreen>
     super.dispose();
   }
 
+  bool isProcessing = false;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,22 +57,61 @@ class _ScannerScreenState extends State<ScannerScreen>
           /// 📸 الكاميرا
           MobileScanner(
             controller: _cameraController,
-            onDetect: (capture) {
-              if (isDetected) return;
 
-              final barcode = capture.barcodes.first.rawValue;
+            onDetect: (capture) async {
+              if (isProcessing) return;
 
-              if (barcode != null) {
-                isDetected = true;
-                _onScan(barcode);
+              final barcodes = capture.barcodes;
+
+              if (barcodes.isEmpty) return;
+
+              final code = barcodes.first.rawValue;
+
+              if (code == null) return;
+
+              final cleaned = code.trim();
+
+              if (cleaned.length < 8) return;
+
+              isProcessing = true;
+
+              isDetected = true;
+
+              await _cameraController.stop();
+
+              await Future.delayed(const Duration(milliseconds: 200));
+
+              if (mounted) {
+                Navigator.pop(context, cleaned);
               }
             },
           ),
 
+          /// Loader
+          if (isProcessing)
+            Container(
+              color: Colors.black54,
+
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+
+                    SizedBox(height: 20),
+
+                    Text(
+                      "جاري قراءة الباركود...",
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           /// 🔲 طبقة تغميق
-          Container(
-            color: Colors.black.withOpacity(0.45),
-          ),
+          Container(color: Colors.black.withOpacity(0.45)),
 
           /// ✨ واجهة الصفحة
           SafeArea(
@@ -160,9 +196,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                         borderRadius: BorderRadius.circular(28),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(
-                              0xFF0B8F4D,
-                            ).withOpacity(0.35),
+                            color: const Color(0xFF0B8F4D).withOpacity(0.35),
                             blurRadius: 25,
                             spreadRadius: 5,
                           ),
@@ -186,11 +220,7 @@ class _ScannerScreenState extends State<ScannerScreen>
                     ),
 
                     /// ✨ الزوايا الاحترافية
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      child: _buildCorner(),
-                    ),
+                    Positioned(top: 0, left: 0, child: _buildCorner()),
 
                     Positioned(
                       top: 0,
@@ -308,74 +338,13 @@ class _ScannerScreenState extends State<ScannerScreen>
 
   /// 📦 بعد المسح
   void _onScan(String code) {
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted) return;
 
-      bool found = _fakeCheck(code);
-
-      /// ✅ المنتج موجود
-      if (!found) {
-        Navigator.push(
-          context,
-
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 500),
-
-            pageBuilder: (_, animation, __) =>
-                const ProductDetailsScreen(),
-
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(
-                opacity: animation,
-
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 0.08),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOut,
-                    ),
-                  ),
-
-                  child: child,
-                ),
-              );
-            },
-          ),
-        ).then((_) {
-          setState(() => isDetected = false);
-        });
-      }
-
-      /// ❌ المنتج غير موجود
-      else {
-        Navigator.push(
-          context,
-
-          MaterialPageRoute(
-            builder: (_) => const ProductNotFoundScreen(),
-          ),
-        ).then((_) {
-          setState(() => isDetected = false);
-        });
-      }
+      Navigator.pop(context, code);
     });
   }
 
-  /// 🧠 بيانات وهمية
-  bool _fakeCheck(String code) {
-    const validCodes = [
-      "123456",
-      "111222",
-      "999999",
-    ];
-
-    return validCodes.contains(code);
-  }
-
-  /// ✨ زوايا الإطار
   Widget _buildCorner() {
     return Container(
       width: 40,
@@ -383,15 +352,9 @@ class _ScannerScreenState extends State<ScannerScreen>
 
       decoration: const BoxDecoration(
         border: Border(
-          top: BorderSide(
-            color: Color(0xFF0B8F4D),
-            width: 5,
-          ),
+          top: BorderSide(color: Color(0xFF0B8F4D), width: 5),
 
-          left: BorderSide(
-            color: Color(0xFF0B8F4D),
-            width: 5,
-          ),
+          left: BorderSide(color: Color(0xFF0B8F4D), width: 5),
         ),
       ),
     );

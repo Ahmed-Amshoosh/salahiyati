@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 class CustomInput extends StatelessWidget {
   final String label;
   final String hint;
-  final IconData? icon;
+  final IconData? icon;final TextEditingController controller;
   final int maxLines;
 
   const CustomInput({
     super.key,
-    required this.label,
+    required this.label,required this.controller,
     required this.hint,
     this.icon,
     this.maxLines = 1,
@@ -28,6 +28,7 @@ class CustomInput extends StatelessWidget {
 
         TextField(
           maxLines: maxLines,
+          controller: controller,
           decoration: InputDecoration(
             hintText: hint,
             suffixIcon: icon != null ? Icon(icon) : null,

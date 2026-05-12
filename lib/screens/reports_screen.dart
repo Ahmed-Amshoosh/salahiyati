@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -9,9 +10,88 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  List products = [];
   String selectedFilter = "هذا الشهر";
   @override
+  void initState() {
+    super.initState();
+    loadProducts();
+  }
+
+  List<int> get barData {
+    final List<int> data = [0, 0, 0, 0];
+
+    for (var p in products) {
+      final d = getDaysLeft(p['expirationDate'] ?? "");
+
+      if (d >= 0 && d <= 7)
+        data[0]++;
+      else if (d > 7 && d <= 14)
+        data[1]++;
+      else if (d > 14 && d <= 21)
+        data[2]++;
+      else if (d > 21 && d <= 30)
+        data[3]++;
+    }
+
+    return data;
+  }
+
+  Future<void> loadProducts() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('products')
+        .get();
+
+    setState(() {
+      products = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    });
+  }
+
+  int getDaysLeft(String date) {
+    try {
+      final expiry = DateTime.parse(date);
+      return expiry.difference(DateTime.now()).inDays;
+    } catch (e) {
+      return 999;
+    }
+  }
+
+  int get expiredCount =>
+      products.where((p) => getDaysLeft(p['expirationDate'] ?? "") < 0).length;
+
+  int get closeCount => products.where((p) {
+    final d = getDaysLeft(p['expirationDate'] ?? "");
+    return d >= 0 && d <= 7;
+  }).length;
+
+  int get safeCount =>
+      products.where((p) => getDaysLeft(p['expirationDate'] ?? "") > 7).length;
+  Map<String, int> get categoryData {
+    final map = {
+      "ألبان": 0,
+      "معلبات": 0,
+      "مشروبات": 0,
+      "وجبات": 0,
+      "حلويات": 0,
+      "أدوية": 0,
+    };
+
+    for (var p in products) {
+      final cat = p['category'] ?? "";
+      if (map.containsKey(cat)) {
+        map[cat] = map[cat]! + 1;
+      }
+    }
+
+    return map;
+  }
+
   Widget build(BuildContext context) {
+    final data = barData;
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -44,68 +124,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
             children: [
               const SizedBox(height: 20),
 
-              // Month Selector
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      blurRadius: 5,
-                    ),
-                  ],
-                ),
-
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: selectedFilter,
-                    isExpanded: true,
-                    icon: const Icon(
-                      Icons.keyboard_arrow_down,
-                      color: Colors.grey,
-                    ),
-
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-
-                    items: const [
-                      DropdownMenuItem(
-                        value: "هذا اليوم",
-                        child: Text("هذا اليوم"),
-                      ),
-
-                      DropdownMenuItem(
-                        value: "هذا الأسبوع",
-                        child: Text("هذا الأسبوع"),
-                      ),
-
-                      DropdownMenuItem(
-                        value: "هذا الشهر",
-                        child: Text("هذا الشهر"),
-                      ),
-
-                      DropdownMenuItem(
-                        value: "هذه السنة",
-                        child: Text("هذه السنة"),
-                      ),
-                    ],
-
-                    onChanged: (value) {
-                      setState(() {
-                        selectedFilter = value!;
-                      });
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
 
               // General Stats
               Container(
@@ -137,7 +155,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _buildStatItem(
-                          number: '36',
+                          number: '$expiredCount',
                           label: 'منتهية الصلاحية',
                           color: Colors.red,
                         ),
@@ -147,7 +165,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           color: Colors.grey.shade300,
                         ),
                         _buildStatItem(
-                          number: '7',
+                          number: '$closeCount',
                           label: 'قاربت على الانتهاء',
                           color: Colors.orange,
                         ),
@@ -157,8 +175,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           color: Colors.grey.shade300,
                         ),
                         _buildStatItem(
-                          number: '0',
-                          label: 'منتهية الصلاحية',
+                          number: '$safeCount',
+                          label: 'صالحة',
                           color: Color(0xFF0B8F4D),
                         ),
                       ],
@@ -201,27 +219,39 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         PieChartData(
                           sections: [
                             PieChartSectionData(
-                              value: 35,
-                              title: '35%',
+                              value: categoryData["ألبان"]!.toDouble(),
+                              title: '${categoryData["ألبان"]}',
                               color: Colors.blue,
                               radius: 60,
                             ),
                             PieChartSectionData(
-                              value: 25,
-                              title: '25%',
+                              value: categoryData["معلبات"]!.toDouble(),
+                              title: '${categoryData["معلبات"]}',
                               color: Colors.orange,
                               radius: 60,
                             ),
                             PieChartSectionData(
-                              value: 20,
-                              title: '20%',
+                              value: categoryData["مشروبات"]!.toDouble(),
+                              title: '${categoryData["مشروبات"]}',
                               color: Colors.green,
                               radius: 60,
                             ),
                             PieChartSectionData(
-                              value: 20,
-                              title: '20%',
+                              value: categoryData["وجبات"]!.toDouble(),
+                              title: '${categoryData["وجبات"]}',
                               color: Colors.red,
+                              radius: 60,
+                            ),
+                            PieChartSectionData(
+                              value: categoryData["حلويات"]!.toDouble(),
+                              title: '${categoryData["حلويات"]}',
+                              color: Colors.blueGrey,
+                              radius: 60,
+                            ),
+                            PieChartSectionData(
+                              value: categoryData["أدوية"]!.toDouble(),
+                              title: '${categoryData["أدوية"]}',
+                              color: Colors.amber,
                               radius: 60,
                             ),
                           ],
@@ -234,7 +264,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     _buildLegendItem('ألبان', '35%', Colors.blue),
                     _buildLegendItem('معلبات', '25%', Colors.orange),
                     _buildLegendItem('مشروبات', '20%', Colors.green),
-                    _buildLegendItem('وجبات خفيفة', '20%', Colors.red),
+                    _buildLegendItem('حلويات', '20%', Colors.blueGrey),
+                    _buildLegendItem('أدوية', '20%', Colors.amber),
                   ],
                 ),
               ),
@@ -317,8 +348,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               x: 0,
                               barRods: [
                                 BarChartRodData(
-                                  toY: 2,
-                                  color: Color(0xFF0B8F4D),
+                                  toY: data[0].toDouble(),
+                                  color: Colors.green,
                                   width: 20,
                                 ),
                               ],
@@ -327,8 +358,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               x: 1,
                               barRods: [
                                 BarChartRodData(
-                                  toY: 4,
-                                  color: Color(0xFF0B8F4D),
+                                  toY: data[1].toDouble(),
+                                  color: Colors.green,
                                   width: 20,
                                 ),
                               ],
@@ -337,8 +368,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               x: 2,
                               barRods: [
                                 BarChartRodData(
-                                  toY: 6,
-                                  color: Color(0xFF0B8F4D),
+                                  toY: data[2].toDouble(),
+                                  color: Colors.green,
                                   width: 20,
                                 ),
                               ],
@@ -347,8 +378,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               x: 3,
                               barRods: [
                                 BarChartRodData(
-                                  toY: 5,
-                                  color: Color(0xFF0B8F4D),
+                                  toY: data[3].toDouble(),
+                                  color: Colors.green,
                                   width: 20,
                                 ),
                               ],
@@ -388,7 +419,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
         Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, color: Colors.grey,fontWeight: FontWeight.bold,),
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );

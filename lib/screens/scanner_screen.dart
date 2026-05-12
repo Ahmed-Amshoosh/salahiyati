@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -337,12 +338,35 @@ class _ScannerScreenState extends State<ScannerScreen>
   }
 
   /// 📦 بعد المسح
-  void _onScan(String code) {
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
+  void _onScan(String code) async{
+    Future.delayed(const Duration(milliseconds: 500), () async{
+await _cameraController.stop();
 
-      Navigator.pop(context, code);
-    });
+final snapshot = await FirebaseFirestore.instance
+    .collection('products')
+    .where('barcode', isEqualTo: code)
+    .limit(1)
+    .get();
+
+if (!mounted) return;
+
+if (snapshot.docs.isNotEmpty) {
+  final product = snapshot.docs.first.data();
+
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ProductDetailsScreen(product: product),
+    ),
+  );
+} else {
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const ProductNotFoundScreen(),
+    ),
+  );
+}    });
   }
 
   Widget _buildCorner() {

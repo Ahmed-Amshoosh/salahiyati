@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:expiry_guard/providers/user_provider.dart';
 import 'package:expiry_guard/screens/add_product_screen.dart';
 import 'package:expiry_guard/screens/notifications.dart';
 import 'package:expiry_guard/screens/products_screen.dart';
@@ -7,6 +8,7 @@ import 'package:expiry_guard/screens/reports_screen.dart';
 import 'package:expiry_guard/screens/scanner_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class HomeScreen extends StatefulWidget {
   HomeScreen({super.key});
@@ -16,28 +18,121 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  List products = [];
   @override
   void initState() {
     super.initState();
     loadUser();
+    loadNotifications();
+    loadProducts();
   }
- String userName = "مستخدم";
+
+  int get totalProducts => products.length;
+
+  int get expiredProducts =>
+      products.where((p) => getDaysLeft(p['expirationDate'] ?? "") < 0).length;
+
+  int get closeProducts => products.where((p) {
+    final d = getDaysLeft(p['expirationDate'] ?? "");
+    return d >= 0 && d <= 7;
+  }).length;
+
+  Future<void> loadProducts() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('products')
+        .get();
+
+    setState(() {
+      products = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    });
+  }
+
   Future<void> loadUser() async {
-   
     final user = FirebaseAuth.instance.currentUser;
 
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(user!.uid)
         .get();
+  }
+
+  List notifications = [];
+  Future<void> loadNotifications() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('products')
+        .get();
+
+    List temp = [];
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+
+      final daysLeft = getDaysLeft(data['expirationDate'] ?? "");
+
+      if (daysLeft <= 30) {
+        temp.add(data);
+      }
+    }
 
     setState(() {
-      userName = doc['name'] ?? 'مستخدم';
+      notifications = temp;
     });
   }
 
+  Map<String, int> get categoryCount {
+    Map<String, int> map = {
+      "ألبان": 0,
+      "معلبات": 0,
+      "مشروبات": 0,
+      "وجبات": 0,
+      "حلويات": 0,
+      "أدوية": 0,
+    };
+
+    for (var p in products) {
+      final cat = p['category'] ?? "";
+
+      if (map.containsKey(cat)) {
+        map[cat] = map[cat]! + 1;
+      }
+    }
+
+    return map;
+  }
+
+  int getDaysLeft(String expiryDate) {
+    try {
+      final expiry = DateTime.parse(expiryDate);
+      return expiry.difference(DateTime.now()).inDays;
+    } catch (e) {
+      return 999;
+    }
+  }
+
+  final categories = [
+    {"title": "ألبان", "emoji": "🥛"},
+    {"title": "المعلبات", "emoji": "🥫"},
+    {"title": "مشروبات", "emoji": "🧃"},
+    {"title": "وجبات", "emoji": "🍟"},
+    {"title": "حلويات", "emoji": "🍰"},
+    {"title": "أدوية", "emoji": "💊"},
+  ];
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    int expiredCount = notifications.where((item) {
+      final daysLeft = getDaysLeft(item['expirationDate'] ?? "");
+      return daysLeft < 0;
+    }).length;
+
+    int urgentCount = notifications.where((item) {
+      final daysLeft = getDaysLeft(item['expirationDate'] ?? "");
+      return daysLeft >= 0 && daysLeft <= 3;
+    }).length;
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F7),
 
@@ -141,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const ScannerScreen()),
+              MaterialPageRoute(builder: (_) => const AddProductScreen()),
             );
           },
 
@@ -189,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "مرحباً $userName",
+                              "مرحبًا ${userProvider.name}",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 18,
@@ -253,8 +348,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
+                              children: [
+                                const Text(
                                   "تنبيهات عاجلة",
                                   style: TextStyle(
                                     color: Colors.red,
@@ -263,11 +358,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
 
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
 
                                 Text(
-                                  "3 منتجات تنتهي خلال 3 أيام",
-                                  style: TextStyle(
+                                  expiredCount > 0
+                                      ? (expiredCount == 1
+                                            ? "منتج واحد منتهي"
+                                            : "$expiredCount منتجات منتهية")
+                                      : urgentCount == 0
+                                      ? "لا توجد تنبيهات عاجلة"
+                                      : urgentCount == 1
+                                      ? "منتج واحد ينتهي خلال أقل من 3 أيام"
+                                      : "$urgentCount منتجات تنتهي خلال 3 أيام",
+                                  style: const TextStyle(
                                     fontSize: 12,
                                     color: Colors.black87,
                                   ),
@@ -276,14 +379,26 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
 
-                          const Align(
-                            alignment: Alignment.bottomLeft,
-                            child: Text(
-                              "عرض الكل",
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationsScreen(
+                                    initialFilter: "urgent",
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Align(
+                              alignment: Alignment.bottomLeft,
+                              child: Text(
+                                "عرض الكل",
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
@@ -312,13 +427,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
-                    Text(
-                      "عرض الكل",
-                      style: TextStyle(
-                        color: Color(0xFF0B8F4D),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  
                   ],
                 ),
               ),
@@ -332,36 +441,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisCount: 4,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-
                   mainAxisSpacing: 8,
                   crossAxisSpacing: 12,
-
                   childAspectRatio: 0.62,
+                  padding: EdgeInsets.zero,
 
-                  padding: EdgeInsets.zero, // 👈 أهم حل هنا
+                  children: categories.map((cat) {
+                    final count = categoryCount[cat['title']] ?? 0;
 
-                  children: const [
-                    CategoryCard(
-                      title: "الألبان",
-                      count: "12 منتج",
-                      emoji: "🥛",
-                    ),
-                    CategoryCard(
-                      title: "المعلبات",
-                      count: "8 منتجات",
-                      emoji: "🥫",
-                    ),
-                    CategoryCard(
-                      title: "مشروبات",
-                      count: "6 منتجات",
-                      emoji: "🧃",
-                    ),
-                    CategoryCard(
-                      title: "وجبات",
-                      count: "10 منتجات",
-                      emoji: "🍟",
-                    ),
-                  ],
+                    return CategoryCard(
+                      title: cat['title']!,
+                      emoji: cat['emoji']!,
+                      count: "$count منتج",
+                    );
+                  }).toList(),
                 ),
               ),
 
@@ -386,27 +479,30 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 20),
 
                     Row(
-                      children: const [
+                      children: [
                         Expanded(
-                          child: StatsCard(number: "36", title: "المنتجات"),
+                          child: StatsCard(
+                            number: "$totalProducts",
+                            title: "المنتجات",
+                          ),
                         ),
 
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
 
                         Expanded(
-                          child: StatsCard(number: "7", title: "قريبة"),
+                          child: StatsCard(
+                            number: "$closeProducts",
+                            title: "قريبة",
+                          ),
                         ),
 
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
 
                         Expanded(
-                          child: StatsCard(number: "0", title: "منتهية"),
-                        ),
-
-                        SizedBox(width: 10),
-
-                        Expanded(
-                          child: StatsCard(number: "125", title: "SAR"),
+                          child: StatsCard(
+                            number: "$expiredProducts",
+                            title: "منتهية",
+                          ),
                         ),
                       ],
                     ),

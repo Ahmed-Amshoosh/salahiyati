@@ -393,7 +393,7 @@ class ProductCard extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const ProductDetailsScreen()),
+          MaterialPageRoute(builder: (_) => ProductDetailsScreen(product: productData)),
         );
       },
       child: Container(

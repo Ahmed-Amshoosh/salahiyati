@@ -1,14 +1,107 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:expiry_guard/screens/home_screen.dart';
 import 'package:expiry_guard/screens/login_screen.dart';
+import 'package:expiry_guard/screens/notifications.dart';
+import 'package:expiry_guard/screens/products_screen.dart';
+import 'package:expiry_guard/services/image_service.dart';
+import 'package:expiry_guard/widgets/custom_snackbar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final user = FirebaseAuth.instance.currentUser;
+
+  String name = "";
+  String email = "";
+  String image = "";
+
+  @override
+  void initState() {
+    super.initState();
+    loadUserData();
+  }
+
+  Future<void> loadUserData() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    final doc = await FirebaseFirestore.instance
+        .collection("users")
+        .doc(uid)
+        .get();
+
+    final data = doc.data();
+
+    setState(() {
+      name = data?['name'] ?? "";
+      email = data?['email'] ?? "";
+      image = data?['image'] ?? "";
+      nameController.text = name;
+    });
+  }
+
+  Future<void> pickImage() async {
+    final picker = ImagePicker();
+
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+
+    if (picked == null) return;
+
+    File file = File(picked.path);
+
+    /// 🔥 رفع إلى ImgBB
+    final url = await ImageService.uploadImageToImgBB(file);
+
+    if (url == null) return;
+
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    /// 🔥 تخزين في Firebase
+    await FirebaseFirestore.instance.collection("users").doc(uid).update({
+      "image": url,
+    });
+
+    setState(() {
+      image = url;
+    });
+  }
+
+  Future<void> saveProfile() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    try {
+      await FirebaseFirestore.instance.collection("users").doc(uid).update({
+        "name": name,
+        // البريد ممنوع تغييره
+      });
+      CustomSnackBar.success(context, "تم حفظ التعديلات بنجاح ");
+    
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("حدث خطأ: $e"), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  bool isEditingName = false;
+  TextEditingController nameController = TextEditingController();
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
+
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -25,12 +118,6 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit, color: Color(0xFF0B8F4D)),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Directionality(
         textDirection: TextDirection.rtl,
@@ -41,62 +128,8 @@ class ProfileScreen extends StatelessWidget {
 
               // Profile Header
               Container(
+                margin: const EdgeInsets.all(20),
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            image: DecorationImage(
-                              image: NetworkImage('https://i.pravatar.cc/300'),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF0B8F4D),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'أحمد محمد',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'ahmed@email.com',
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Menu Items
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
@@ -104,41 +137,121 @@ class ProfileScreen extends StatelessWidget {
                     BoxShadow(
                       color: Colors.grey.withOpacity(0.1),
                       blurRadius: 10,
-                      spreadRadius: 2,
                     ),
                   ],
                 ),
                 child: Column(
                   children: [
-                    _buildMenuItem(
-                      icon: Icons.person_outline,
-                      title: 'المعلومات الشخصية',
-                      onTap: () {},
+                    /// الصورة
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: const Color(0xFF0B8F4D),
+                          backgroundImage: (image.isNotEmpty)
+                              ? NetworkImage(image)
+                              : null,
+                          child: (image.isEmpty)
+                              ? Text(
+                                  name.isNotEmpty ? name[0] : "U",
+                                  style: const TextStyle(
+                                    fontSize: 30,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF0B8F4D),
+                              shape: BoxShape.circle,
+                            ),
+                            child: GestureDetector(
+                              onTap: pickImage,
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const Divider(height: 1),
-                    _buildMenuItem(
-                      icon: Icons.lock_outline,
-                      title: 'تغيير كلمة المرور',
-                      onTap: () {},
+
+                    const SizedBox(height: 20),
+
+                    /// الاسم كحقل
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.person, color: Color(0xFF0B8F4D)),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: TextField(
+                              controller: nameController,
+                              onChanged: (value) {
+                                setState(() {
+                                  name = value;
+                                });
+                              },
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                hintText: "الاسم",
+                              ),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const Divider(height: 1),
-                    _buildMenuItem(
-                      icon: Icons.favorite_border,
-                      title: 'المفضلات',
-                      onTap: () {},
-                    ),
-                    const Divider(height: 1),
-                    _buildMenuItem(
-                      icon: Icons.location_on_outlined,
-                      title: 'المواقع المخزنة',
-                      onTap: () {},
-                    ),
+
+                    const SizedBox(height: 10),
+
+                    /// الإيميل كحقل
+                    _infoField("البريد الإلكتروني", email, Icons.email),
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
 
-              const SizedBox(height: 30),
-
+              // Menu Items
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                width: double.infinity,
+                height: 55,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B8F4D),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: TextButton(
+                  onPressed: saveProfile,
+                  child: const Text(
+                    'حفظ التعديلات',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
               // Logout Button
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -183,18 +296,35 @@ class ProfileScreen extends StatelessWidget {
               _bottomItem(
                 icon: Icons.home_outlined,
                 label: "الرئيسية",
-                onTap: () {},
+                onTap: () {
+                   Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => HomeScreen()),
+                  );
+                },
               ),
               _bottomItem(
                 icon: Icons.inventory_2_outlined,
                 label: "المنتجات",
-                onTap: () {},
+                onTap: () {
+                   Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProductsScreen()),
+                  );
+                },
               ),
               const SizedBox(width: 40),
               _bottomItem(
                 icon: Icons.notifications_none,
                 label: "التنبيهات",
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  );
+                },
               ),
               _bottomItem(
                 icon: Icons.more_horiz,
@@ -228,6 +358,43 @@ class ProfileScreen extends StatelessWidget {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+    );
+  }
+
+  Widget _infoField(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF0B8F4D)),
+
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -1,10 +1,49 @@
 import 'package:flutter/material.dart';
 
-class ProductDetailsScreen extends StatelessWidget {
-  const ProductDetailsScreen({super.key});
+class ProductDetailsScreen extends StatefulWidget {
+  final Map product;
+  const ProductDetailsScreen({super.key, required this.product});
+
+  @override
+  State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
+}
+
+class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
+  int getDaysLeft(String expiryDate) {
+    try {
+      final expiry = DateTime.parse(expiryDate);
+
+      final now = DateTime.now();
+
+      // مهم: نقارن بدون وقت (فقط تاريخ)
+      final today = DateTime(now.year, now.month, now.day);
+      final exp = DateTime(expiry.year, expiry.month, expiry.day);
+
+      return exp.difference(today).inDays;
+    } catch (e) {
+      return 999;
+    }
+  }
+
+  Color getStatusColor(int daysLeft) {
+    if (daysLeft < 0) return Colors.red;
+    if (daysLeft <= 3) return Colors.orange;
+    return const Color(0xFF0B8F4D);
+  }
+
+  String formatDate(dynamic timestamp) {
+    if (timestamp == null) return '';
+    try {
+      final date = timestamp.toDate();
+      return "${date.year}-${date.month}-${date.day}";
+    } catch (e) {
+      return '';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final daysLeft = getDaysLeft(widget.product['expirationDate'] ?? "");
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -56,8 +95,8 @@ class ProductDetailsScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'حليب كامل الدسم',
+                                Text(
+                                  widget.product['name'] ?? '',
                                   style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
@@ -68,11 +107,12 @@ class ProductDetailsScreen extends StatelessWidget {
                                 const SizedBox(height: 8),
 
                                 Center(
-                                  child: const Text(
-                                    'ألبان',
+                                  child: Text(
+                                    widget.product['category'] ?? '',
                                     style: TextStyle(
                                       fontSize: 15,
-                                      color: Colors.grey,fontWeight:FontWeight.bold 
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
@@ -86,27 +126,29 @@ class ProductDetailsScreen extends StatelessWidget {
                                     vertical: 10,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF0B8F4D,
-                                    ).withOpacity(0.1),
+                                    color: getStatusColor(daysLeft).withOpacity(0.12),
                                     borderRadius: BorderRadius.circular(25),
                                   ),
 
-                                  child: const Row(
+                                  child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
+                                       Icon(
                                         Icons.access_time,
                                         size: 18,
-                                        color: Color(0xFF0B8F4D),
+                                        color: getStatusColor(daysLeft),
                                       ),
 
-                                      SizedBox(width: 8),
+                                      const SizedBox(width: 8),
 
                                       Text(
-                                        'ينتهي خلال 3 أيام',
-                                        style: TextStyle(
-                                          color: Color(0xFF0B8F4D),
+                                        daysLeft < 0
+                                            ? 'منتهي منذ ${daysLeft.abs()} يوم'
+                                            : daysLeft == 0
+                                            ? 'ينتهي اليوم'
+                                            : 'ينتهي خلال $daysLeft أيام',
+                                        style:  TextStyle(
+                                          color: getStatusColor(daysLeft),
                                           fontWeight: FontWeight.bold,
                                           fontSize: 15,
                                         ),
@@ -133,18 +175,10 @@ class ProductDetailsScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(20),
 
                               child: Image.network(
-                                'https://via.placeholder.com/300x300/4A90E2/FFFFFF?text=حليب',
+                                widget.product['imageUrl'] ?? '',
                                 fit: BoxFit.contain,
-
                                 errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey.shade100,
-                                    child: const Icon(
-                                      Icons.local_drink,
-                                      size: 70,
-                                      color: Colors.blue,
-                                    ),
-                                  );
+                                  return const Icon(Icons.image_not_supported);
                                 },
                               ),
                             ),
@@ -171,37 +205,28 @@ class ProductDetailsScreen extends StatelessWidget {
                           _buildDetailRow(
                             icon: Icons.calendar_today_outlined,
                             label: 'تاريخ الانتهاء',
-                            value: '2024 مايو 20',
+                            value: widget.product['expirationDate'] ?? '',
                           ),
                           _buildDivider(),
                           _buildDetailRow(
                             icon: Icons.add_box_outlined,
                             label: 'تاريخ الإضافة',
-                            value: '2024 مايو 10',
+                            value: formatDate(widget.product['createdAt']),
                           ),
                           _buildDivider(),
                           _buildDetailRow(
                             icon: Icons.straighten_outlined,
                             label: 'الكمية / الحجم',
-                            value: '1 لتر',
+                            value: widget.product['quantity'] ?? '',
                           ),
-                          _buildDivider(),
-                          _buildDetailRow(
-                            icon: Icons.store_outlined,
-                            label: 'الماركة',
-                            value: 'المراعي',
-                          ),
-                          _buildDivider(),
-                          _buildDetailRow(
-                            icon: Icons.location_on_outlined,
-                            label: 'الموقع',
-                            value: 'الثلاجة - الرف العلوي',
-                          ),
+
                           _buildDivider(),
                           _buildDetailRow(
                             icon: Icons.note_outlined,
                             label: 'ملاحظات',
-                            value: 'لا توجد ملاحظات',
+                            value: widget.product['notes']?.isNotEmpty == true
+                                ? widget.product['notes']
+                                : 'لا توجد ملاحظات',
                             valueColor: Colors.grey,
                           ),
                         ],
@@ -215,87 +240,6 @@ class ProductDetailsScreen extends StatelessWidget {
             ),
 
             // Bottom Buttons
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // Edit Button
-                  Expanded(
-                    child: Container(
-                      height: 56,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: const Color(0xFF0B8F4D),
-                          width: 1.5,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: TextButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(
-                          Icons.edit_outlined,
-                          color: Color(0xFF0B8F4D),
-                          size: 22,
-                        ),
-                        label: const Text(
-                          'تعديل',
-                          style: TextStyle(
-                            color: Color(0xFF0B8F4D),
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Delete Button
-                  Expanded(
-                    child: Container(
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: TextButton.icon(
-                        onPressed: () {
-                          _showDeleteConfirmation(context);
-                        },
-                        icon: Icon(
-                          Icons.delete_outline,
-                          color: Colors.red.shade600,
-                          size: 22,
-                        ),
-                        label: Text(
-                          'حذف',
-                          style: TextStyle(
-                            color: Colors.red.shade600,
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

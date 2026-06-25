@@ -356,6 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: Colors.white,
           ),
         ),
+        
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );

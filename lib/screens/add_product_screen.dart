@@ -4,7 +4,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:expiry_guard/screens/scanner_screen.dart';
 import 'package:expiry_guard/widgets/customInput.dart';
-import 'package:flutter/material.dart';import 'package:expiry_guard/services/image_service.dart';
+import 'package:flutter/material.dart';
+import 'package:expiry_guard/services/image_service.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -17,216 +18,63 @@ class AddProductScreen extends StatefulWidget {
 }
 
 class _AddProductScreenState extends State<AddProductScreen> {
-  int selectedTab = 0; // 0 = إدخال يدوي, 1 = مسح الباركود
-  final ImagePicker _picker = ImagePicker();
-
-  // الحقول
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController barcodeController = TextEditingController();
-  final TextEditingController categoryController = TextEditingController();
-  final TextEditingController expirationController = TextEditingController();
-  final TextEditingController quantityController = TextEditingController();
-  final TextEditingController notesController = TextEditingController();
-  String? barcode;
-  XFile? productImage;
-  final List<String> categories = [
-    "ألبان",
-    "مشروبات",
-    "معلبات",
-    "وجبات",
-    "حلويات",
-    "أدوية",
-  ];
-
-  String? selectedCategory;
-  String? imageUrl;
-
-  bool isLoadingProduct = false;
-  bool isLoading = false;
-
+  int selectedTab = 0; String? barcode; XFile? productImage;String? selectedCategory;String? imageUrl;bool isLoadingProduct = false;bool isLoading = false;String? uploadedImageUrl;
+  final ImagePicker _picker = ImagePicker(); DateTime? selectedDate;
+  final TextEditingController nameController = TextEditingController();final TextEditingController barcodeController = TextEditingController();final TextEditingController expirationController = TextEditingController();
+  final TextEditingController categoryController = TextEditingController();final TextEditingController quantityController = TextEditingController();final TextEditingController notesController = TextEditingController();
+  final List<String> categories = ["ألبان","مشروبات","معلبات","وجبات","حلويات", "أدوية",];
   Future<void> _openCamera() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.camera);
-
-    if (image != null) {
-      setState(() {
-        productImage = image;
-      });
-    }
+    if (image != null) {setState(() { productImage = image;});}
   }
-
   Future<void> fetchProductByBarcode(String barcode) async {
     if (isLoading) return;
-
     setState(() => isLoading = true);
-
     try {
       final cleanCode = barcode.trim();
-
-      if (cleanCode.isEmpty) return;
-
-      /// 1️⃣ Firebase Search
-      final query = await FirebaseFirestore.instance
-          .collection('products')
-          .where('barcode', isEqualTo: cleanCode)
-          .limit(1)
-          .get();
-
+      if (cleanCode.isEmpty) return; /// 1️⃣ Firebase Search
+      final query = await FirebaseFirestore.instance.collection('products').where('barcode', isEqualTo: cleanCode).limit(1).get();
       if (!mounted) return;
-
       if (query.docs.isNotEmpty) {
         final data = query.docs.first.data();
-
-        setState(() {
-          nameController.text = data['name'] ?? '';
-          selectedCategory = data['category'];
-          barcodeController.text = cleanCode;
-          expirationController.text = data['expirationDate'] ?? '';
-          quantityController.text = data['quantity'] ?? '';
-          notesController.text = data['notes'] ?? '';
-        });
-
-        return; // ⛔ توقف هنا إذا وجد في Firebase
-      }
-
-      /// 2️⃣ API Search (OpenFoodFacts)
-      final url =
-          'https://world.openfoodfacts.org/api/v0/product/$cleanCode.json';
-
+        setState(() { nameController.text = data['name'] ?? ''; selectedCategory = data['category'];barcodeController.text = cleanCode;
+          expirationController.text = data['expirationDate'] ?? '';quantityController.text = data['quantity'] ?? '';notesController.text = data['notes'] ?? '';});
+        return;} /// 2️⃣ API Search (OpenFoodFacts)
+      final url = 'https://world.openfoodfacts.org/api/v0/product/$cleanCode.json';
       final response = await http.get(Uri.parse(url));
-
-      if (response.statusCode != 200) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("فشل الاتصال بالـ API")));
-        return;
-      }
-
+      if (response.statusCode != 200) {ScaffoldMessenger.of( context,).showSnackBar(const SnackBar(content: Text("فشل الاتصال بالـ API")));return;}
       final jsonData = json.decode(response.body);
-
       if (jsonData['status'] == 1) {
-        final product = jsonData['product'];
-        print(product);
-        print(jsonData['product']);
-        final name = product['product_name'] ?? '';
-        final image = product['image_thumb_url'] ?? '';
-
-        setState(() {
-          nameController.text = name;
-          barcodeController.text = cleanCode;
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("المنتج غير موجود في API")),
-        );
-      }
-    } catch (e) {
-      debugPrint("Error: $e");
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("خطأ في الاتصال")));
-    }
-
+        final product = jsonData['product'];final name = product['product_name'] ?? '';
+        setState(() { nameController.text = name; barcodeController.text = cleanCode;});
+      } else {ScaffoldMessenger.of(context).showSnackBar( const SnackBar(content: Text("المنتج غير موجود في API")),);}
+    } catch (e) {debugPrint("Error: $e");ScaffoldMessenger.of(context,).showSnackBar(const SnackBar(content: Text("خطأ في الاتصال")));}
     setState(() => isLoading = false);
   }
-
-  String? uploadedImageUrl;
   Future<void> saveProduct() async {
-    try {
-      setState(() {
-        isLoading = true;
-      });
-
-      /// 1️⃣ التحقق من الحقول
-      if (nameController.text.isEmpty ||
-          selectedCategory == null ||
-          expirationController.text.isEmpty ||
-          quantityController.text.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("يرجى تعبئة جميع الحقول")));
-
-        return;
-      }
-
-      /// 2️⃣ منع التكرار
-      final existing = await FirebaseFirestore.instance
-          .collection('products')
-          .where('barcode', isEqualTo: barcodeController.text.trim())
-          .limit(1)
-          .get();
-
+    try {setState(() {isLoading = true;});
+      if (nameController.text.isEmpty ||selectedCategory == null ||expirationController.text.isEmpty ||quantityController.text.isEmpty) {
+        ScaffoldMessenger.of(context,).showSnackBar(const SnackBar(content: Text("يرجى تعبئة جميع الحقول")));
+        return;}
+      final existing = await FirebaseFirestore.instance.collection('products').where('barcode', isEqualTo: barcodeController.text.trim()).limit(1).get();
       if (existing.docs.isNotEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("المنتج موجود مسبقًا")));
-
-        return;
-      }
-
-
-      if (productImage != null) {
-        imageUrl = await ImageService.uploadImageToImgBB(File(productImage!.path));
-      
-      }
-      
-
-      /// 4️⃣ حفظ المنتج
-      await FirebaseFirestore.instance.collection('products').add({
-        "barcode": barcodeController.text.trim(),
-
-        "name": nameController.text.trim(),
-
-        "category": selectedCategory,
-
-        "imageUrl": imageUrl ?? "",
-
-        "expirationDate": expirationController.text.trim(),
-
-        "quantity": quantityController.text.trim(),
-
-        "notes": notesController.text.trim(),
-
-        "createdAt": FieldValue.serverTimestamp(),
-      });
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("تم حفظ المنتج بنجاح")));
-
+        ScaffoldMessenger.of(context,).showSnackBar(const SnackBar(content: Text("المنتج موجود مسبقًا")));
+        return;}
+      if (productImage != null) {imageUrl = await ImageService.uploadImageToImgBB( File(productImage!.path), );}
+      await FirebaseFirestore.instance.collection('products').add({"barcode": barcodeController.text.trim(), "name": nameController.text.trim(), "category": selectedCategory,
+        "imageUrl": imageUrl ?? "","expirationDate": expirationController.text.trim(),"quantity": quantityController.text.trim(),"notes": notesController.text.trim(),
+        "createdAt": FieldValue.serverTimestamp(),});
+      ScaffoldMessenger.of(context,).showSnackBar(const SnackBar(content: Text("تم حفظ المنتج بنجاح")));
       Navigator.pop(context);
     } catch (e) {
       debugPrint(e.toString());
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("حدث خطأ أثناء الحفظ")));
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
-    }
+      ScaffoldMessenger.of(context,).showSnackBar(const SnackBar(content: Text("حدث خطأ أثناء الحفظ")));
+    } finally {setState(() {isLoading = false;});}
   }
-
-  DateTime? selectedDate;
   Future<void> pickExpirationDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-    );
-
-    if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-
-        expirationController.text =
-            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-      });
-    }
+    final DateTime? picked = await showDatePicker(context: context,initialDate: DateTime.now().add(const Duration(days: 1)), firstDate: DateTime.now(),lastDate: DateTime(2100),);
+    if (picked != null) {setState(() {selectedDate = picked;expirationController.text ="${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";});}
   }
-
   @override
   Widget build(BuildContext context) {
     return Directionality(

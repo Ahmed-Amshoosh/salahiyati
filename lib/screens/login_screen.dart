@@ -13,7 +13,6 @@ class LoginScreen extends StatefulWidget {
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 
-  /// زر السوشيال
   static Widget _socialButton(IconData icon, Color color) {
     return Container(
       width: 55,
@@ -160,99 +159,40 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 20),
 
                       /// زر تسجيل الدخول
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-
+                      SizedBox( width: double.infinity, height: 55,
                         child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0B8F4D),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-
+                          style: ElevatedButton.styleFrom( backgroundColor: const Color(0xFF0B8F4D),
+                            shape: RoundedRectangleBorder( borderRadius: BorderRadius.circular(14),),),
                           onPressed: () async {
-                            if (emailController.text.isEmpty ||
-                                passwordController.text.isEmpty) {
-                              CustomSnackBar.error(
-                                context,
-                                "يرجى تعبئة جميع الحقول",
-                              );
-
+                            if (emailController.text.isEmpty ||  passwordController.text.isEmpty) {
+                              CustomSnackBar.error(  context, "يرجى تعبئة جميع الحقول", );
                               return;
                             }
                             try {
-                              setState(() {
-                                isLoading = true;
-                              });
-
-                              await authService.login(
-                                email: emailController.text.trim(),
-                                password: passwordController.text.trim(),
-                              );
-
+                              setState(() {  isLoading = true; });
+                              await authService.login(  email: emailController.text.trim(), password: passwordController.text.trim(), );
                               if (context.mounted) {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => HomeScreen(),
-                                  ),
-                                );
+                                Navigator.pushReplacement(  context, MaterialPageRoute( builder: (_) => HomeScreen()),);
                               }
                             } on FirebaseAuthException catch (e) {
                               String message;
-
                               switch (e.code) {
-                                case 'user-not-found':
-                                  message =
-                                      "لا يوجد مستخدم بهذا البريد الإلكتروني";
-                                  break;
-
-                                case 'wrong-password':
-                                  message = "كلمة المرور غير صحيحة";
-                                  break;
-
-                                case 'invalid-email':
-                                  message = "البريد الإلكتروني غير صالح";
-                                  break;
-
-                                case 'user-disabled':
-                                  message = "هذا الحساب تم تعطيله";
-                                  break;
-
-                                case 'too-many-requests':
-                                  message = "محاولات كثيرة، حاول لاحقًا";
-                                  break;
-
-                                case 'invalid-credential':
-                                  message = "بيانات الدخول غير صحيحة أو منتهية";
-                                  break;
-
-                                default:
-                                  message = "حدث خطأ غير متوقع";
+                                case 'user-not-found': message =  "لا يوجد مستخدم بهذا البريد الإلكتروني";  break;
+                                case 'wrong-password': message = "كلمة المرور غير صحيحة"; break;
+                                case 'invalid-email': message = "البريد الإلكتروني غير صالح";  break;
+                                case 'user-disabled':  message = "هذا الحساب تم تعطيله";  break;
+                                case 'too-many-requests': message = "محاولات كثيرة، حاول لاحقًا"; break;
+                                case 'invalid-credential':  message = "بيانات الدخول غير صحيحة أو منتهية";  break;
+                                default:  message = "حدث خطأ غير متوقع";
                               }
-
                               CustomSnackBar.error(context, message);
                             } finally {
-                              setState(() {
-                                isLoading = false;
-                              });
+                              setState(() { isLoading = false; });
                             }
                           },
-
                           child: isLoading
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white,
-                                )
-                              : const Text(
-                                  "تسجيل الدخول",
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                              ? const CircularProgressIndicator(color: Colors.white, )
+                              : const Text( "تسجيل الدخول", style: TextStyle( fontSize: 18, fontWeight: FontWeight.bold,color: Colors.white, ), ),
                         ),
                       ),
 
@@ -280,10 +220,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       const SizedBox(height: 25),
 
-                      /// تسجيل عبر الحسابات
+                      /// تسجيل عبر الحسابات قوقل
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-
                         children: [
                           GestureDetector(
                             onTap: () async {

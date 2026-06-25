@@ -18,109 +18,49 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List products = [];
+  List products = [];  List notifications = [];
   @override
   void initState() {
     super.initState();
-    loadUser();
-    loadNotifications();
-    loadProducts();
+    loadUser();loadNotifications();loadProducts();
   }
-
   int get totalProducts => products.length;
-
-  int get expiredProducts =>
-      products.where((p) => getDaysLeft(p['expirationDate'] ?? "") < 0).length;
-
-  int get closeProducts => products.where((p) {
-    final d = getDaysLeft(p['expirationDate'] ?? "");
-    return d >= 0 && d <= 7;
-  }).length;
-
+  int get expiredProducts =>products.where((p) => getDaysLeft(p['expirationDate'] ?? "") < 0).length;
+  int get closeProducts => products.where((p) {final d = getDaysLeft(p['expirationDate'] ?? "");return d >= 0 && d <= 7;}).length;
   Future<void> loadProducts() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('products')
-        .get();
-
-    setState(() {
-      products = snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return data;
-      }).toList();
-    });
+    final snapshot = await FirebaseFirestore.instance.collection('products').get();
+    setState(() {products = snapshot.docs.map((doc) {final data = doc.data();data['id'] = doc.id;return data;}).toList();});
   }
-
   Future<void> loadUser() async {
     final user = FirebaseAuth.instance.currentUser;
-
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .get();
+    final doc = await FirebaseFirestore.instance .collection('users').doc(user!.uid).get();
   }
-
-  List notifications = [];
   Future<void> loadNotifications() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('products')
-        .get();
-
+    final snapshot = await FirebaseFirestore.instance.collection('products').get();
     List temp = [];
-
     for (var doc in snapshot.docs) {
       final data = doc.data();
-
       final daysLeft = getDaysLeft(data['expirationDate'] ?? "");
-
-      if (daysLeft <= 30) {
-        temp.add(data);
-      }
+      if (daysLeft <= 30) {temp.add(data);}
     }
-
-    setState(() {
-      notifications = temp;
-    });
+    setState(() {notifications = temp;});
   }
-
   Map<String, int> get categoryCount {
-    Map<String, int> map = {
-      "ألبان": 0,
-      "معلبات": 0,
-      "مشروبات": 0,
-      "وجبات": 0,
-      "حلويات": 0,
-      "أدوية": 0,
-    };
-
+    Map<String, int> map = { "ألبان": 0,  "معلبات": 0,"مشروبات": 0,"وجبات": 0, "حلويات": 0, "أدوية": 0,};
     for (var p in products) {
       final cat = p['category'] ?? "";
-
-      if (map.containsKey(cat)) {
-        map[cat] = map[cat]! + 1;
-      }
+      if (map.containsKey(cat)) {map[cat] = map[cat]! + 1;}
     }
-
     return map;
   }
-
   int getDaysLeft(String expiryDate) {
     try {
       final expiry = DateTime.parse(expiryDate);
       return expiry.difference(DateTime.now()).inDays;
-    } catch (e) {
-      return 999;
-    }
+    } catch (e) { return 999;}
   }
-
-  final categories = [
-    {"title": "ألبان", "emoji": "🥛"},
-    {"title": "المعلبات", "emoji": "🥫"},
-    {"title": "مشروبات", "emoji": "🧃"},
-    {"title": "وجبات", "emoji": "🍟"},
-    {"title": "حلويات", "emoji": "🍰"},
-    {"title": "أدوية", "emoji": "💊"},
-  ];
+  final categories = [{"title": "ألبان", "emoji": "🥛"}, {"title": "المعلبات", "emoji": "🥫"},{"title": "مشروبات", "emoji": "🧃"},
+    {"title": "وجبات", "emoji": "🍟"}, {"title": "حلويات", "emoji": "🍰"},{"title": "أدوية", "emoji": "💊"},];
   @override
   Widget build(BuildContext context) {
     final userProvider = Provider.of<UserProvider>(context);
